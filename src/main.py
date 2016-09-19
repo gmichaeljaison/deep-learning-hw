@@ -19,26 +19,28 @@ def disp_image(vec):
 
 
 def main():
-    # data, lbl = read_input('../data/digitsvalid.txt')
-    # print(data.shape, data[0, 0])
-    # print(lbl.shape, lbl[0])
+    x_train, lbl = read_input('../data/digitsvalid.txt')
     # disp_image(data[300, :])
+    net = Net([784, 100, 10], 0.2)
+    x_train = ml_utils.normalize_data(x_train)
+    y_train = ml_utils.lbl2prob(lbl, 10)
 
-    data, lbl = read_input('../data/xor_train.txt')
-    print(data)
-    print(lbl)
+    # xor - data
+    # data, lbl = read_input('../data/xor_train.txt')
+    # print(data)
+    # print(lbl)
+    # net = Net([2, 3, 2], 0.1)
+    # y_train = ml_utils.lbl2prob(lbl, 2)
+    # print(data)
+    # print(y_train)
 
-    net = Net([2, 10, 10, 2], 0.05)
+    net.train(x_train, y_train, 2000)
 
-    data = ml_utils.normalize_data(data)
-    y_train = ml_utils.lbl2prob(lbl)
+    res = net.test(x_train)
+    test_lbl = ml_utils.prob2lbl(res)
+    print(ml_utils.evaluate(test_lbl, lbl))
 
-    print(data)
-    print(y_train)
-
-    net.train(data, y_train, 500)
-    res = net.test(data)
-    print(res)
+    # print(res)
 
 
 if __name__ == '__main__':
