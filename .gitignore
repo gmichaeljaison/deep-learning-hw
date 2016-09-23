@@ -1,3 +1,5 @@
+result/
+
 # OS & IDE specific
 .idea/
 *.*~

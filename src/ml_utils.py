@@ -3,7 +3,7 @@ import numpy as np
 
 def normalize_data(data):
     data -= data.mean(axis=0)
-    data /= data.std(axis=0)
+    data /= data.std(axis=0) + 1e-5
     return data
 
 
@@ -18,8 +18,20 @@ def prob2lbl(prob):
     return prob.argmax(axis=1)
 
 
-def evaluate(y_pred, y):
-    return np.count_nonzero(y_pred == y) / len(y)
+def evaluate(lbl_pred, lbl):
+    return np.count_nonzero(lbl_pred == lbl) / len(lbl)
+
+
+def cross_entropy_error(y_pred, y):
+    # loss function (cross-entropy loss)
+    loss = np.sum(-np.log(np.sum(y_pred * y, axis=1)))
+    loss /= len(y)
+    return loss
+
+
+def classification_error(y_pred, y):
+    loss = 1 - evaluate(prob2lbl(y_pred), prob2lbl(y))
+    return loss * 100
 
 
 def shuffle(X, Y):
