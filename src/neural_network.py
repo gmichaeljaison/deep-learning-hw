@@ -1,9 +1,9 @@
 import numpy as np
 import math
 import logging
+import pickle as pkl
 
 from src import ml_utils
-from matplotlib import pyplot as plt
 from cv_utils import img_utils
 
 
@@ -17,8 +17,14 @@ class Net:
 
         self.num_layers = len(neurons_cnt)
         self.weights = list()
+        self.weight_grads = [None] * self.num_layers  # gradient of previous iteration
 
         self.initialize_weights()
+
+    @classmethod
+    def load(cls, fpath):
+        with open(fpath, 'rb') as f:
+            return pkl.load(f)
 
     def initialize_weights(self):
         # no weights for layer0
@@ -33,6 +39,9 @@ class Net:
             logging.info('Initializing weights for layer<{}> in range {} to {}'.format(i, -b, b))
 
     def predict(self, x):
+        """
+        Used for test phase
+        """
         hx = x
         for i in range(1, self.num_layers):
             ones = np.ones((hx.shape[0], 1))
@@ -41,11 +50,16 @@ class Net:
             ax = np.dot(hx, self.weights[i])
             if i < self.num_layers - 1:
                 hx = sigmoid(ax)
+                # dropout (test time)
+                hx[i] *= (1 - self.dropout)
             else:
                 hx = softmax(ax)
         return hx
 
     def forward(self, x):
+        """
+        Used for training
+        """
         bsize = x.shape[0]
 
         # post-activation
@@ -59,6 +73,14 @@ class Net:
             ax = np.dot(hx[i-1], self.weights[i])
             if i < self.num_layers-1:
                 hx[i] = sigmoid(ax)
+
+                # dropout
+                mask = np.ones(hx[i].size)
+                indices = np.random.permutation(hx[i].size)
+                dropout_cnt = int(hx[i].size * self.dropout)
+                indices = indices[:dropout_cnt]
+                mask[indices] = 0
+                hx[i] *= mask.reshape(hx[i].shape)
             else:
                 hx[i] = softmax(ax)
         return hx
@@ -73,7 +95,14 @@ class Net:
         for i in range(self.num_layers-1, 0, -1):
             dw = np.dot(hx[i-1].T, dx)
             dw /= bsize
+
+            # Regularization
             dw[1:] += self.weight_decay * regularizer_grad(dw[1:])
+
+            # Momentum
+            if self.weight_grads[i] is not None:
+                dw += self.momentum * self.weight_grads[i]  # dW(t) = dW(t) + beta * dW(t-1)
+            self.weight_grads[i] = dw
 
             d_hx = np.dot(dx, self.weights[i].T)
             dx = d_hx * (hx[i-1] * (1 - hx[i-1]))  # der(sigmoid)
@@ -82,7 +111,7 @@ class Net:
             # update weights
             self.weights[i] -= self.lr * dw
 
-    def train(self, x_train, y_train, x_valid, y_valid, epochs, batch_size=100, visualize=False):
+    def train(self, x_train, y_train, x_valid, y_valid, epochs, batch_size=100):
         x_train, y_train = ml_utils.shuffle(x_train, y_train)
         n_data = len(y_train)
 
@@ -90,8 +119,11 @@ class Net:
         err_train, err_valid = list(), list()
         cerr_train, cerr_valid = list(), list()
 
-        for epoch in range(epochs):
+        # min error on validation set
+        min_err = 100
+        min_cerr = 100
 
+        for epoch in range(1, epochs+1):
             for start_i in range(0, n_data, batch_size):
                 end_i = start_i + batch_size
                 x_batch = x_train[start_i:end_i, :]
@@ -99,34 +131,27 @@ class Net:
 
                 self.backward(x_batch, y_batch)
 
-            if epoch % 10 == 0:
+            if epoch % 20 == 0 or epoch == 1:
                 plt_x.append(epoch)
                 logging.info('\n\nEpoch: {}'.format(epoch))
 
                 err, cerr = self.validate(x_train, y_train)
                 err_train.append(err)
                 cerr_train.append(cerr)
-                logging.info('Training - Cross-entropy Error: {:.3f}, Classification-error: {:.3f}'.
+                logging.info('Training: Cross-entropy Error: {:.3f}, Classification-error: {:.3f}'.
                              format(err, cerr))
 
                 err, cerr = self.validate(x_valid, y_valid)
                 err_valid.append(err)
                 cerr_valid.append(cerr)
-                logging.info('Validation - Cross-entropy Error: {:.3f}, Classification-error: {:.3f}'.
+                logging.info('Validation: Cross-entropy Error: {:.3f}, Classification-error: {:.3f}'.
                              format(err, cerr))
+                if err < min_err:
+                    min_err = err
+                if cerr < min_cerr:
+                    min_cerr = cerr
 
-        if visualize:
-            plt.plot(plt_x, err_train, 'bs', plt_x, err_valid, 'g^')
-            plt.ylabel('Cross-entropy error')
-            plt.xlabel('Epochs')
-            plt.ylim((0, 1))
-            plt.show()
-
-            plt.figure()
-            plt.plot(plt_x, cerr_train, 'bs', plt_x, cerr_valid, 'g^')
-            plt.ylabel('Classification error')
-            plt.xlabel('Epochs')
-            plt.show()
+        return plt_x, (err_train, cerr_train), (err_valid, cerr_valid)
 
     def validate(self, x, y):
         res = self.predict(x)
@@ -142,6 +167,10 @@ class Net:
             imgs.append(w_im.astype(np.float32) * 255)
         coll = img_utils.collage(imgs, (10, 10))
         return coll
+
+    def save(self, fpath):
+        with open(fpath, 'wb') as f:
+            pkl.dump(self, f)
 
 
 # ------------------
