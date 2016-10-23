@@ -29,6 +29,11 @@ def cross_entropy_error(y_pred, y):
     return loss
 
 
+def cross_entropy_reconstruction_error(x, x_gen):
+    err = x * np.log(x_gen) + (1 - x) * np.log(1 - x_gen)
+    return -1 * err.mean()
+
+
 def classification_error(y_pred, y):
     loss = 1 - evaluate(prob2lbl(y_pred), prob2lbl(y))
     return loss * 100
