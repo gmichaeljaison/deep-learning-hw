@@ -14,7 +14,7 @@ class FullyConnected(Module):
 
         # Weight params
         if weights is not None:
-            logging.info('loading weights')
+            logging.info('Pre-loading weights for layer<{}>'.format(self.name))
 
             self.w = weights[0]
             if len(weights) > 1:

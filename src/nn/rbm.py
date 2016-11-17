@@ -9,6 +9,7 @@ class RBM(Module):
 
         self.fc = FullyConnected('fc', inp_size, out_size)
         self.activation = Sigmoid('sigm')
+        self.train_steps = 1
 
         # Weight params
         self.bias2 = np.zeros((1, inp_size))
@@ -33,7 +34,7 @@ class RBM(Module):
         return x_cap
 
     def update_weight(self, lr):
-        x_cap, h_cap = self.gibbs_sampling(self.x)
+        x_cap, h_cap = self.gibbs_sampling(self.x, self.train_steps)
 
         self.fc.dw = (np.dot(self.x.T, self.h) - np.dot(x_cap.T, h_cap)) / self.x.shape[0]
         self.fc.d_bias = (self.h - h_cap).mean(axis=0)
@@ -43,7 +44,6 @@ class RBM(Module):
         # self.fc.d_bias = np.sum(self.h - h_cap, axis=0)
         # self.d_bias2 = np.sum(self.x - x_cap, axis=0)
 
-        # self.fc.update_weight(-lr)
         self.bias2 += lr * self.d_bias2
         self.fc.bias += lr * self.fc.d_bias
         self.fc.w += lr * self.fc.dw
@@ -55,22 +55,18 @@ class RBM(Module):
         x_cap = x
 
         prob_h = self.apply_forward(x_cap)
-        # h_cap = prob_h
         h_cap = prob_h.round()
 
         def pick_prob(mat):
+            """ Pick 0 or 1 based on the probability values """
             r = np.random.uniform(0, 1, mat.shape)
             return (mat > r).astype(int)
 
         for _ in range(steps):
             prob_x = self.backward(h_cap)
-            # x_cap = prob_x
-            # x_cap = prob_x.round()
             x_cap = pick_prob(prob_x)
 
             prob_h = self.apply_forward(x_cap)
-            # h_cap = prob_h
-            # h_cap = prob_h.round()
             h_cap = pick_prob(prob_h)
 
         return x_cap, h_cap
