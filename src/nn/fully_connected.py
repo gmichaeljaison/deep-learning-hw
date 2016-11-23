@@ -7,29 +7,27 @@ from cv_utils import img_utils
 
 
 class FullyConnected(Module):
-    def __init__(self, name, inp_size, out_size, weights=None):
+    def __init__(self, name, inp_size, out_size):
         super().__init__(name)
         self.inp_size = inp_size
         self.out_size = out_size
 
-        # Weight params
-        if weights is not None:
-            logging.info('Pre-loading weights for layer<{}>'.format(self.name))
+        self.w = FullyConnected.init_weights(inp_size, out_size)
+        logging.info('Initializing weights for layer<{}>'.format(self.name))
 
-            self.w = weights[0]
-            if len(weights) > 1:
-                self.bias = weights[1]
-            else:
-                self.bias = np.zeros((1, out_size))
-        else:
-            self.w = FullyConnected.init_weights(inp_size, out_size)
-            logging.info('Initializing weights for layer<{}>'.format(self.name))
-
-            self.bias = np.zeros((1, out_size))
+        self.bias = np.zeros((1, out_size))
+        self.bias2 = np.zeros((1, inp_size))
 
         # Gradients
-        self.dw = None
-        self.d_bias = None
+        self.dw = 0
+        self.d_bias = 0
+        self.d_bias2 = 0
+
+    def set_weights(self, weights):
+        logging.info('Pre-loading weights for layer<{}>'.format(self.name))
+        self.w = weights[0]
+        self.bias = weights[1] if len(weights) > 1 else 0
+        self.bias2 = weights[2] if len(weights) > 2 else 0
 
     @staticmethod
     def init_weights(inp_size, out_size):
@@ -37,11 +35,19 @@ class FullyConnected(Module):
         return np.random.uniform(-b, b, (inp_size, out_size))
 
     def forward(self, x):
+        if x is None:
+            return
+
         super().forward(x)
 
         self.h = np.dot(x, self.w)
         self.h += self.bias
         return self.h
+
+    def backward(self, h):
+        x_cap = np.dot(h, self.w.T)
+        x_cap += self.bias2
+        return x_cap
 
     def update_gradient(self, dh):
         """

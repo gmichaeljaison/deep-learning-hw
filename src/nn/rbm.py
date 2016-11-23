@@ -40,10 +40,6 @@ class RBM(Module):
         self.fc.d_bias = (self.h - h_cap).mean(axis=0)
         self.d_bias2 = (self.x - x_cap).mean(axis=0)
 
-        # self.fc.dw = (np.dot(self.x.T, self.h) - np.dot(x_cap.T, h_cap))
-        # self.fc.d_bias = np.sum(self.h - h_cap, axis=0)
-        # self.d_bias2 = np.sum(self.x - x_cap, axis=0)
-
         self.bias2 += lr * self.d_bias2
         self.fc.bias += lr * self.fc.d_bias
         self.fc.w += lr * self.fc.dw

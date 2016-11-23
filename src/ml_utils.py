@@ -2,9 +2,10 @@ import numpy as np
 
 
 def normalize_data(data):
-    data -= data.mean(axis=0)
-    data /= data.std(axis=0) + 1e-5
-    return data
+    if data is not None:
+        data -= data.mean(axis=0)
+        data /= data.std(axis=0) + 1e-5
+        return data
 
 
 def lbl2prob(lbl, num_classes=2):
@@ -31,7 +32,8 @@ def cross_entropy_error(y_pred, y):
 
 def cross_entropy_reconstruction_error(x, x_gen):
     err = x * np.log(x_gen) + (1 - x) * np.log(1 - x_gen)
-    return -1 * err.mean()
+    return -1 * err.sum()
+    # return -1 * err.mean()
 
 
 def classification_error(y_pred, y):

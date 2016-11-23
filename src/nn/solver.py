@@ -1,4 +1,6 @@
+import os.path as osp
 import logging
+import pickle as pkl
 
 from src import ml_utils
 
@@ -10,7 +12,8 @@ class Solver:
         self.lr = lr
         self.momentum = momentum
         self.weight_decay = weight_decay
-        self.epochs = epochs
+        self.epochs = epochs if isinstance(epochs, (list, tuple)) else (1, epochs)
+
         self.batch_size = batch_size
         self.test_interval = test_interval
 
@@ -23,7 +26,7 @@ class Solver:
     def solve(self, dataset):
         n_data = dataset.x_train.shape[0]
 
-        for epoch in range(self.epochs):
+        for epoch in range(self.epochs[0], self.epochs[1]+1):
             for si in range(0, n_data, self.batch_size):
                 x_batch = dataset.x_train[si:si + self.batch_size]
                 y_batch = dataset.y_train[si:si + self.batch_size]
@@ -49,6 +52,14 @@ class Solver:
 
         return errs
 
+    def save_model(self, epoch, save_dir, save_freq=-1):
+        if epoch > 0 and save_freq > 0:
+            if epoch == self.epochs[1] or epoch % save_freq == 0:
+                fname = '{}-ep{:03d}.pkl'.format(self.net.name, epoch)
+                with open(osp.join(save_dir, fname), 'wb') as f:
+                    pkl.dump(self.net, f)
+                    logging.info('Saving the model at {}'.format(fname))
+
 
 class AutoEncoderSolver(Solver):
     def __init__(self, net, lr, epochs, batch_size=100, momentum=0, weight_decay=0,
@@ -63,7 +74,7 @@ class AutoEncoderSolver(Solver):
     def solve(self, dataset):
         n_data = dataset.x_train.shape[0]
 
-        for epoch in range(self.epochs):
+        for epoch in range(self.epochs[0], self.epochs[1]+1):
             for si in range(0, n_data, self.batch_size):
                 x_batch = dataset.x_train[si:si + self.batch_size]
 

@@ -91,8 +91,10 @@ def classify(dataset, net_fname=None):
         fc = fnet.find('fc1')
         weights = [fc.w, fc.bias]
 
+    fc1 = FullyConnected('fc1', 28 * 28, 100)
+    fc1.set_weights(weights)
     modules = [
-        FullyConnected('fc1', 28*28, 100, weights=weights),
+        fc1,
         Sigmoid('sigm1'),
         FullyConnected('fc2', 100, 10),
         SoftMax('smax')
