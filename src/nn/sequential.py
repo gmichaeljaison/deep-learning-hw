@@ -45,7 +45,7 @@ class Sequential(Module):
     def update_gradient(self, dh):
         pass
 
-    def update_weight(self, lr):
+    def update_weight(self, lr, momentum=0):
         pass
 
     def output_gradient(self, y):

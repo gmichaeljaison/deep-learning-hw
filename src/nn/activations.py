@@ -17,7 +17,7 @@ class Sigmoid(Module):
         self.dx = dh * self.h * (1 - self.h)
         return self.dx
 
-    def update_weight(self, lr):
+    def update_weight(self, lr, momentum=0):
         pass
     
     def der_x_entropy(self, y):
@@ -47,7 +47,7 @@ class SoftMax(Module):
         self.dx = - (dh - self.h)
         return self.dx
 
-    def update_weight(self, lr):
+    def update_weight(self, lr, momentum=0):
         pass
 
     def der_x_entropy(self, y):

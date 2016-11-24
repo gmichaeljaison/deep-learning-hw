@@ -3,6 +3,7 @@ import logging
 import pickle as pkl
 
 from src import ml_utils
+from cv_utils import utils
 
 
 class Solver:
@@ -16,6 +17,33 @@ class Solver:
 
         self.batch_size = batch_size
         self.test_interval = test_interval
+
+        self._save_dir = net.name
+
+        # set of functions to execute as a pipeline during the training process
+        # format is tuple: (function, epoch) -> function to execute at every <epoch>s
+        self.pipeline = list()
+
+    @property
+    def save_dir(self):
+        return self._save_dir
+
+    @save_dir.setter
+    def save_dir(self, save_dir):
+        self._save_dir = osp.join(save_dir, self.net.name)
+        utils.create_dirs(self._save_dir)
+
+    def run_pipeline(self, epoch):
+        for fn, every_ep in self.pipeline:
+            if epoch % every_ep == 0:
+                logging.info('Invoking {} at epoch {}'.format(fn.__name__, epoch))
+                fn(self, epoch)
+
+    def add_pipe(self, fn, freq, pos=-1):
+        if pos >= 0:
+            self.pipeline.insert(pos, (fn, freq))
+        else:
+            self.pipeline.append((fn, freq))
 
     def validate(self, x, y):
         res = self.net.forward(x)
@@ -52,13 +80,22 @@ class Solver:
 
         return errs
 
-    def save_model(self, epoch, save_dir, save_freq=-1):
-        if epoch > 0 and save_freq > 0:
-            if epoch == self.epochs[1] or epoch % save_freq == 0:
-                fname = '{}-ep{:03d}.pkl'.format(self.net.name, epoch)
-                with open(osp.join(save_dir, fname), 'wb') as f:
-                    pkl.dump(self.net, f)
-                    logging.info('Saving the model at {}'.format(fname))
+    def add_save_pipe(self, save_dir, save_freq):
+        self.save_dir = save_dir
+        self.add_pipe(Solver.save_model, save_freq, 0)
+
+    def save_model(self, epoch):
+        fname = '{}-ep{:03d}.pkl'.format(self.net.name, epoch)
+        with open(osp.join(self.save_dir, fname), 'wb') as f:
+            pkl.dump(self.net, f)
+        logging.info('Saving the model at {}'.format(fname))
+
+    @staticmethod
+    def load_model(name, epoch, save_dir=''):
+        save_dir = osp.join(save_dir, name)
+        fname = '{}-ep{:03d}.pkl'.format(name, epoch)
+        with open(osp.join(save_dir, fname), 'rb') as f:
+            return pkl.load(f)
 
 
 class AutoEncoderSolver(Solver):
@@ -98,3 +135,40 @@ class AutoEncoderSolver(Solver):
                 errs.append((epoch, train_err, valid_err))
 
         return errs
+
+
+class GenSolver(Solver):
+    """
+    Solver for unsupervised generative models
+    1. Restricted Boltzmann Machine
+    2. Deep Boltzmann Machine
+    """
+    def __init__(self, net, lr, epochs, batch_size=100, momentum=0, test_interval=20):
+        super().__init__(net, lr, epochs, batch_size, momentum,
+                         test_interval=test_interval)
+
+    def validate(self, x, y):
+        _, x_prob = self.net.reconstruct(x, 1)
+        err = ml_utils.cross_entropy_reconstruction_error(x, x_prob)
+        return err
+
+    def train(self, dataset):
+        def train_val_err(solver, epoch):
+            terr = solver.validate(dataset.x_train, None)
+            logging.info('Training Cross-entropy error: {}'.format(terr))
+
+            verr = solver.validate(dataset.x_valid, None)
+            logging.info('Validation Cross-entropy error: {}'.format(verr))
+
+        self.add_pipe(train_val_err, freq=self.test_interval, pos=0)
+
+        train_val_err(self, self.epochs[0]-1)
+
+        for epoch in range(self.epochs[0], self.epochs[1]+1):
+            logging.info('starting epoch {}'.format(epoch))
+
+            for x_batch, _ in dataset.next_batch(self.batch_size):
+                self.net.forward(x_batch)
+                self.net.update_weight(self.lr, self.momentum)
+
+            self.run_pipeline(epoch)

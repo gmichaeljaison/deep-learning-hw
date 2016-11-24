@@ -31,9 +31,11 @@ def cross_entropy_error(y_pred, y):
 
 
 def cross_entropy_reconstruction_error(x, x_gen):
+    # handle pure 0 and 1
+    x_gen[x_gen == 0] = 1e-10
+    x_gen[x_gen == 1] = 1 - 1e-10
     err = x * np.log(x_gen) + (1 - x) * np.log(1 - x_gen)
-    return -1 * err.sum()
-    # return -1 * err.mean()
+    return -1 * err.sum() / x.shape[0]
 
 
 def classification_error(y_pred, y):
@@ -44,3 +46,9 @@ def classification_error(y_pred, y):
 def shuffle(X, Y):
     rand_i = np.random.permutation(range(len(Y)))
     return X[rand_i], Y[rand_i]
+
+
+def sample_from_prob(mat):
+    """ Pick 0 or 1 based on the probability values """
+    r = np.random.uniform(0, 1, mat.shape)
+    return (mat > r).astype(int)

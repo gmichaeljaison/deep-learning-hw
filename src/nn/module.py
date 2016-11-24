@@ -40,7 +40,7 @@ class Module:
         """
         raise NotImplementedError('Layer is an interface. This method needs an implementation')
 
-    def update_weight(self, lr):
+    def update_weight(self, lr, momentum=0):
         raise NotImplementedError('Layer is an interface. This method needs an implementation')
 
     def save(self, fpath):
@@ -71,5 +71,5 @@ class Dropout(Module):
         self.dh *= self.mask
         return self.dh
 
-    def update_weight(self, lr):
+    def update_weight(self, lr, momentum=0):
         pass

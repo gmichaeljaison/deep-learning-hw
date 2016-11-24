@@ -1,26 +1,41 @@
 import numpy as np
 
+from src import ml_utils
 from src.nn import Module, FullyConnected, Sigmoid
 
 
 class RBM(Module):
-    def __init__(self, name, inp_size, out_size):
+    def __init__(self, name, inp_size, out_size, n_chain):
         super().__init__(name)
 
-        self.fc = FullyConnected('fc', inp_size, out_size)
-        self.activation = Sigmoid('sigm')
+        self.fc = FullyConnected('{}-fc'.format(name), inp_size, out_size)
+        self.activation = Sigmoid('{}-sigm'.format(name))
         self.train_steps = 1
 
         # Weight params
         self.bias2 = np.zeros((1, inp_size))
 
         # Gradients
-        self.d_bias2 = None
+        self.d_bias2 = np.zeros((1, inp_size))
+
+        # Persistence CD chains
+        self.x_cap = np.random.randint(0, 2, (n_chain, inp_size))
+
+    @property
+    def pcd(self):
+        return self.x_cap
+
+    def reconstruct(self, x, steps=1):
+        _, h_cap = self.gibbs_sampling(x, steps)
+
+        x_prob = self.backward(h_cap)
+        x_cap = ml_utils.sample_from_prob(x_prob)
+        return x_cap, x_prob
 
     def apply_forward(self, x):
         ax = self.fc.forward(x)
         h = self.activation.forward(ax)
-        h = h.round()
+        # h = h.round()
         return h
 
     def forward(self, x):
@@ -33,58 +48,38 @@ class RBM(Module):
         x_cap = self.activation.forward(x_cap)
         return x_cap
 
-    def update_weight(self, lr):
-        x_cap, h_cap = self.gibbs_sampling(self.x, self.train_steps)
+    def update_weight(self, lr, momentum=0):
+        bsize = self.x.shape[0]
+        n_chain = self.x_cap.shape[0]
 
-        self.fc.dw = (np.dot(self.x.T, self.h) - np.dot(x_cap.T, h_cap)) / self.x.shape[0]
-        self.fc.d_bias = (self.h - h_cap).mean(axis=0)
-        self.d_bias2 = (self.x - x_cap).mean(axis=0)
+        self.x_cap, h_cap = self.gibbs_sampling(self.x_cap, self.train_steps)
 
-        self.bias2 += lr * self.d_bias2
-        self.fc.bias += lr * self.fc.d_bias
+        dw1 = np.dot(self.x.T, self.h) / bsize
+        dw2 = np.dot(self.x_cap.T, h_cap) / n_chain
+        dw = dw1 - dw2
+        self.fc.dw = (momentum * self.fc.dw) + dw
         self.fc.w += lr * self.fc.dw
+        # self.fc.dw = (np.dot(self.x.T, self.h) - np.dot(self.x_cap.T, h_cap)) / self.x.shape[0]
+
+        self.fc.d_bias = (momentum * self.fc.d_bias) + \
+                         (self.h.mean(axis=0) - h_cap.mean(axis=0))
+        self.fc.bias += lr * self.fc.d_bias
+
+        self.d_bias2 = (momentum * self.d_bias2) + \
+                       (self.x.mean(axis=0) - self.x_cap.mean(axis=0))
+        self.bias2 += lr * self.d_bias2
 
     def update_gradient(self, dh):
         pass
 
     def gibbs_sampling(self, x, steps=1):
-        x_cap = x
-
-        prob_h = self.apply_forward(x_cap)
-        h_cap = prob_h.round()
-
-        def pick_prob(mat):
-            """ Pick 0 or 1 based on the probability values """
-            r = np.random.uniform(0, 1, mat.shape)
-            return (mat > r).astype(int)
+        x_cap, h_cap = x, None
 
         for _ in range(steps):
-            prob_x = self.backward(h_cap)
-            x_cap = pick_prob(prob_x)
+            h_prob = self.apply_forward(x_cap)
+            h_cap = ml_utils.sample_from_prob(h_prob)
 
-            prob_h = self.apply_forward(x_cap)
-            h_cap = pick_prob(prob_h)
+            x_prob = self.backward(h_cap)
+            x_cap = ml_utils.sample_from_prob(x_prob)
 
         return x_cap, h_cap
-
-
-def solver(rbm, dataset, epochs, lr=0.1, bsize=100):
-    """
-    Trains the network using Restricted Boltzmann Machine
-
-    :param rbm: RBM Module
-    :param dataset: Dataset object
-    :param epochs: Number of epochs to iterate
-    :param lr: Learning rate
-    :param bsize: Batch size
-    :yield: Yields loss information every epoch
-    """
-    n_data = dataset.x_train.shape[0]
-    for epoch in range(epochs):
-        for si in range(0, n_data, bsize):
-            x_batch = dataset.x_train[si:si + bsize]
-
-            rbm.forward(x_batch)
-            rbm.update_weight(lr)
-
-        yield epoch + 1

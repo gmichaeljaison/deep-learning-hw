@@ -65,7 +65,7 @@ class FullyConnected(Module):
         self.dx = np.dot(dh, self.w.T)
         return self.dx
 
-    def update_weight(self, lr):
+    def update_weight(self, lr, momentum=0):
         self.w -= lr * self.dw
         self.bias -= lr * self.d_bias
 
