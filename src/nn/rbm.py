@@ -59,7 +59,6 @@ class RBM(Module):
         dw = dw1 - dw2
         self.fc.dw = (momentum * self.fc.dw) + dw
         self.fc.w += lr * self.fc.dw
-        # self.fc.dw = (np.dot(self.x.T, self.h) - np.dot(self.x_cap.T, h_cap)) / self.x.shape[0]
 
         self.fc.d_bias = (momentum * self.fc.d_bias) + \
                          (self.h.mean(axis=0) - h_cap.mean(axis=0))

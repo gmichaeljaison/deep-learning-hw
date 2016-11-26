@@ -43,7 +43,7 @@ class Dataset:
         n_batches = n // batch_size
 
         for i in range(n_batches):
-            # logging.info('Yielding dataset batch: {}'.format(i+1))
+            # logging.debug('Yielding dataset batch: {}'.format(i+1))
             si = i * batch_size
             end_i = si + batch_size
             x_batch = self.x_train[si:end_i]

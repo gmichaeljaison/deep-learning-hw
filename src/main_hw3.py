@@ -5,6 +5,8 @@ import os.path as osp
 import cv_utils
 import math
 import numpy as np
+import matplotlib.pyplot as plt
+import sys
 
 from cv_utils import img_utils
 from src.dataset import MNIST
@@ -48,6 +50,18 @@ def generate_snapshot(model):
     return save_im
 
 
+def plot_err(plt_x, err_train, err_valid):
+    plt.plot(plt_x, err_train, 'bs', label='Training error')
+    plt.plot(plt_x, err_valid, 'g^', label='Validation error')
+    plt.ylabel('Cross-entropy error')
+    plt.xlabel('Epochs')
+    # plt.ylim((min(50, min(err_train), min(err_valid)), max(max(err_train), max(err_valid))))
+    plt.ylim(70, 250)
+    plt.legend()
+    plt.show()
+    # plt.close('all')
+
+
 def train_pipeline():
     def view_samples(solver, epoch):
         pcd = convert_mat2collage(solver.net.pcd, 28, 28)
@@ -60,13 +74,21 @@ def train_pipeline():
                             .format(solver.net.name, epoch)), save_im)
 
     def decay_lr(solver, epoch):
-        solver.lr /= 1.5
+        if solver.lr > 0.0001 and epoch > 5:
+            solver.lr /= 2
+            logging.info('Learning rate is reduced to {}'.format(solver.lr))
 
-    freq = 5
+    def inc_momentum(solver, epoch):
+        if epoch > 20:
+            solver.momentum = 0.9
+            logging.info('Momentum: {}'.format(solver.momentum))
+
+    freq = 25
     return [
         (view_samples, freq),
         (gen, freq),
-        (decay_lr, 50)
+        (decay_lr, 50),
+        (inc_momentum, 10)
     ]
 
 
@@ -76,7 +98,7 @@ def create_rbm(name, n_chain=100):
 
 
 def create_dbm(name, n_chain=100):
-    h1_size, h2_size = 200, 200
+    h1_size, h2_size = 100, 100
     h2 = dbm.DBMLayer('h2', h1_size, h2_size, n_chain)
     h1 = dbm.DBMLayer('h1', 28*28, h1_size, n_chain)
     h0 = dbm.DBMLayer0('h0', 28*28, n_chain)
@@ -86,25 +108,28 @@ def create_dbm(name, n_chain=100):
 
 def train(model, epochs):
     lr = 0.01
-    batch_size = 5
+    batch_size = 10
     momentum = 0.5
 
     solver = GenSolver(model, lr, epochs, batch_size, momentum, test_interval=5)
-    solver.add_save_pipe(save_dir, save_freq=50)
+    solver.add_save_pipe(save_dir, save_freq=100)
     solver.pipeline.extend(train_pipeline())
-    solver.train(dataset)
+    plt_x, terr, verr = solver.train(dataset)
+    # plot_err(plt_x, terr, verr)
 
 
-def main():
-    name = 'dbm'
+def main(method='dbm'):
+    name = '{}-temp'.format(method)
     n_chain = 100
-    epochs = (1, 30)
+    epochs = (1, 100)
 
     # reload saved model
     # model = Solver.load_model(name, 100, save_dir)
 
-    model = create_dbm(name, n_chain)
-    # model = create_rbm(name, n_chain)
+    if method == 'dbm':
+        model = create_dbm(name, n_chain)
+    else:
+        model = create_rbm(name, n_chain)
 
     train(model, epochs)
 
@@ -115,7 +140,7 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    np.random.seed(32)
+    np.random.seed(23)
 
     datadir = 'data/'
     save_dir = 'result3/'
@@ -130,10 +155,13 @@ if __name__ == '__main__':
     # dataset.x_valid = np.delete(dataset.x_valid, range(200), 0)
     # dataset.y_valid = np.delete(dataset.y_valid, range(200), 0)
 
-    dataset.x_train = np.vstack((dataset.x_train, dataset.x_test))
-    dataset.y_train = np.vstack((dataset.y_train, dataset.y_test))
+    # dataset.x_train = np.vstack((dataset.x_train, dataset.x_test))
+    # dataset.y_train = np.vstack((dataset.y_train, dataset.y_test))
 
     dataset.binarize()
     dataset.shuffle()
 
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == 'rbm':
+        main('rbm')
+    else:
+        main()

@@ -9,6 +9,12 @@ from cv_utils import utils
 class Solver:
     def __init__(self, net, lr, epochs, batch_size=100, momentum=0, weight_decay=0,
                  test_interval=20):
+        logging.info('Initialzing the solver\n'
+                     'Learning rate: {}\n'
+                     'Epochs: {}\n'
+                     'batch_size: {}\n'
+                     'Momentum: {}\n'
+                     'Weight decay: {}\n'.format(lr, epochs, batch_size, momentum, weight_decay))
         self.net = net
         self.lr = lr
         self.momentum = momentum
@@ -153,15 +159,20 @@ class GenSolver(Solver):
         return err
 
     def train(self, dataset):
+        plt_x, terrs, verrs = list(), list(), list()
+
         def train_val_err(solver, epoch):
+            plt_x.append(epoch)
+
             terr = solver.validate(dataset.x_train, None)
             logging.info('Training Cross-entropy error: {}'.format(terr))
+            terrs.append(terr)
 
             verr = solver.validate(dataset.x_valid, None)
             logging.info('Validation Cross-entropy error: {}'.format(verr))
+            verrs.append(verr)
 
         self.add_pipe(train_val_err, freq=self.test_interval, pos=0)
-
         train_val_err(self, self.epochs[0]-1)
 
         for epoch in range(self.epochs[0], self.epochs[1]+1):
@@ -172,3 +183,4 @@ class GenSolver(Solver):
                 self.net.update_weight(self.lr, self.momentum)
 
             self.run_pipeline(epoch)
+        return plt_x, terrs, verrs

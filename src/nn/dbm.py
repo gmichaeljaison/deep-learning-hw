@@ -56,7 +56,7 @@ class DBM(Module):
         self.layers[0].mu = x
 
         # update until convergence
-        max_steps = 10
+        max_steps = 5
         for step in range(max_steps):
             if step == 0:
                 for lay in self.layers[1:]:
@@ -76,7 +76,8 @@ class DBM(Module):
 
             h_cap_prev = lay.h_cap  # h_cap in iteration 't'
             lay.h_cap, _ = lay.gibbs_sampling(bottom, top, steps)  # iteration 't+1'
-            bottom = h_cap_prev
+            # bottom = h_cap_prev
+            bottom = lay.h_cap
 
 
 class DBMLayer0:
